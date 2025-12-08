@@ -28,24 +28,42 @@ DB = {
     "logs": os.path.join(DB_DIR, "logs.json")
 }
 
-# Initialize DB
+# Initialize DB files correctly
 for path in DB.values():
     if not os.path.exists(path):
-        default = {} if "analytics" not in path and "logs" not in path else []
+        if "analytics" in path:
+            default = {}  # { "sitename": [visits] }
+        elif "logs" in path:
+            default = []  # [log entries]
+        else:
+            default = {}  # users, sites
         with open(path, "w") as f:
             json.dump(default, f, indent=2)
 
-def load_json(path): 
-    with open(path, "r") as f: 
+# ----------------------------------------------------------------------
+# DB HELPERS
+# ----------------------------------------------------------------------
+def load_json(path):
+    with open(path, "r") as f:
         return json.load(f)
-def save_json(path, data): 
-    with open(path, "w") as f: 
+
+def save_json(path, data):
+    with open(path, "w") as f:
         json.dump(data, f, indent=2)
 
-def get_users(): return load_json(DB["users"])
-def get_sites(): return load_json(DB["sites"])
-def get_analytics(): return load_json(DB["analytics"])
-def get_logs(): return load_json(DB["logs"])
+def get_users():
+    return load_json(DB["users"])
+
+def get_sites():
+    return load_json(DB["sites"])
+
+def get_analytics():
+    data = load_json(DB["analytics"])
+    return data if isinstance(data, dict) else {}
+
+def get_logs():
+    data = load_json(DB["logs"])
+    return data if isinstance(data, list) else []
 
 def save_users(d): save_json(DB["users"], d)
 def save_sites(d): save_json(DB["sites"], d)
@@ -55,12 +73,12 @@ def save_logs(d): save_json(DB["logs"], d)
 def log_action(user, action, details=""):
     logs = get_logs()
     logs.append({
-        "user": user,
+        "user": user or "system",
         "action": action,
         "details": details,
         "timestamp": datetime.now().isoformat()
     })
-    save_logs(logs[-1000:])  # Keep last 1000 logs
+    save_logs(logs[-1000:])  # Keep last 1000
 
 def hash_password(pwd):
     return hashlib.sha256(pwd.encode()).hexdigest()
@@ -72,7 +90,7 @@ MAINTENANCE = False
 
 @app.before_request
 def check_maintenance():
-    if MAINTENANCE and request.path not in ['/admin', '/auth/login', '/auth/logout'] and 'admin' not in session:
+    if MAINTENANCE and request.path not in ['/admin', '/auth/login', '/auth/logout'] and not session.get("is_admin"):
         return render_template_string(TEMPLATES["maintenance"]), 503
 
 # ----------------------------------------------------------------------
@@ -130,7 +148,7 @@ def logout():
     return redirect(url_for("home"))
 
 # ----------------------------------------------------------------------
-# HOME & PAGES
+# PAGES
 # ----------------------------------------------------------------------
 @app.route("/")
 def home():
@@ -145,7 +163,7 @@ def projects():
     return render_template_string(TEMPLATES["projects"])
 
 # ----------------------------------------------------------------------
-# USER DASHBOARD
+# DASHBOARD
 # ----------------------------------------------------------------------
 @app.route("/dashboard")
 def dashboard():
@@ -162,7 +180,7 @@ def dashboard():
         username=username, sites=sites, paused=paused, warnings=user_data.get("warnings", []))
 
 # ----------------------------------------------------------------------
-# UPLOAD SITE
+# UPLOAD
 # ----------------------------------------------------------------------
 @app.route("/dashboard/upload", methods=["GET", "POST"])
 def upload_site():
@@ -190,7 +208,6 @@ def upload_site():
         else:
             file.save(os.path.join(upload_dir, file.filename))
 
-        # Auto-find index.html
         index_found = any(
             f.lower() == "index.html"
             for root, _, files in os.walk(upload_dir)
@@ -222,11 +239,9 @@ def delete_site(sitename):
     site = next((s for s in sites.values() if s["sitename"] == sitename and s["owner"] == session["user"]), None)
     if not site: return "Not found", 404
 
-    # Remove from DB
     new_sites = {k: v for k, v in sites.items() if v["sitename"] != sitename}
     save_sites(new_sites)
 
-    # Remove files
     path = os.path.join(UPLOAD_ROOT, sitename)
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -269,7 +284,7 @@ def rename_site(old):
                 os.rename(old_path, new_path)
             s["sitename"] = new
             save_sites(sites)
-            log_action(session["user"], "rename_site", f"{old} → {new}")
+            log_action(session["user"], "rename_site", f"{old} to {new}")
             break
     return redirect(url_for("dashboard"))
 
@@ -296,7 +311,7 @@ def site_analytics(sitename):
         sitename=sitename, total=total, unique=unique, paths=paths, recent=data[-20:])
 
 # ----------------------------------------------------------------------
-# SERVE USER SITES
+# SERVE SITES (FIXED)
 # ----------------------------------------------------------------------
 @app.route("/<sitename>")
 @app.route("/<sitename>/<path:subpath>")
@@ -310,7 +325,7 @@ def serve_site(sitename, subpath=""):
     if not os.path.exists(site_path):
         return render_template_string(TEMPLATES["404"]), 404
 
-    # Log visit
+    # === FIXED ANALYTICS LOGGING ===
     analytics = get_analytics()
     if sitename not in analytics:
         analytics[sitename] = []
@@ -322,6 +337,7 @@ def serve_site(sitename, subpath=""):
         "timestamp": datetime.now().isoformat()
     })
     save_analytics(analytics)
+    # ===============================
 
     full_path = os.path.join(site_path, subpath) if subpath else site_path
 
@@ -406,106 +422,38 @@ def make_admin(username):
     return redirect(url_for("admin_panel"))
 
 # ----------------------------------------------------------------------
-# 404
+# 404 & MAINTENANCE
 # ----------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(e):
     return render_template_string(TEMPLATES["404"]), 404
 
 # ----------------------------------------------------------------------
-# TEMPLATES (Embedded - Replace with real files later)
+# TEMPLATES (Auto-load from files if exist)
 # ----------------------------------------------------------------------
+def load_template(name, default=""):
+    path = os.path.join("templates", name)
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    return default
+
 TEMPLATES = {
-    "index": open("templates/index.html", "r", encoding="utf-8").read() if os.path.exists("templates/index.html") else """
-    <h1>Platform Render</h1><p>Host static sites at <code>sites.teamdev.sbs/yoursite</code></p>
-    <a href="/auth/signup">Signup</a> | <a href="/auth/login">Login</a>
-    """,
-
-    "pricing": open("templates/pricing.html", "r", encoding="utf-8").read() if os.path.exists("templates/pricing.html") else """
-    <h1>Pricing</h1><p>Free tier: 5 sites</p><p>Pro: Unlimited - $5/mo</p>
-    """,
-
-    "projects": open("templates/projects.html", "r", encoding="utf-8").read() if os.path.exists("templates/projects.html") else """
-    <h1>Featured Projects</h1><p>Coming soon...</p>
-    """,
-
-    "login": open("templates/login.html", "r", encoding="utf-8").read() if os.path.exists("templates/login.html") else """
-    <form method="post"><input name="username" placeholder="Username" required>
-    <input name="password" type="password" placeholder="Password" required>
-    <button>Login</button></form><a href="/auth/signup">Signup</a>
-    """,
-
-    "signup": open("templates/signup.html", "r", encoding="utf-8").read() if os.path.exists("templates/signup.html") else """
-    <form method="post"><input name="username" placeholder="Username" required>
-    <input name="email" type="email" placeholder="Email" required>
-    <input name="password" type="password" placeholder="Password" required>
-    <button>Signup</button></form>
-    """,
-
-    "dashboard": open("templates/dashboard.html", "r", encoding="utf-8").read() if os.path.exists("templates/dashboard.html") else """
-    <h1>Dashboard - {{ username }}</h1>
-    {% if warnings %}<p style="color:red">Warnings: {{ warnings|length }}</p>{% endif %}
-    <a href="/dashboard/upload">Upload Site</a> | <a href="/auth/logout">Logout</a>
-    <h2>Active Sites</h2>
-    {% for s in sites %}
-    <p><b>{{ s.sitename }}</b> - 
-       <a href="https://sites.teamdev.sbs/{{ s.sitename }}" target="_blank">View</a> |
-       <a href="/dashboard/analytics/{{ s.sitename }}">Analytics</a> |
-       <form method="post" action="/dashboard/pause/{{ s.sitename }}" style="display:inline">
-         <button>{{ 'Unpause' if s.paused else 'Pause' }}</button>
-       </form> |
-       <form method="post" action="/dashboard/delete/{{ s.sitename }}" style="display:inline">
-         <button style="color:red">Delete</button>
-       </form>
-    </p>
-    {% endfor %}
-    """,
-
-    "upload": open("templates/upload.html", "r", encoding="utf-8").read() if os.path.exists("templates/upload.html") else """
-    <form method="post" enctype="multipart/form-data">
-      <input name="sitename" placeholder="myblog" required>
-      <input type="file" name="file" accept=".zip,.html" required>
-      <button>Upload</button>
-    </form>
-    """,
-
-    "analytics": open("templates/analytics.html", "r", encoding="utf-8").read() if os.path.exists("templates/analytics.html") else """
-    <h1>Analytics: {{ sitename }}</h1>
-    <p>Total Views: {{ total }} | Unique: {{ unique }}</p>
-    <h3>Paths</h3><ul>{% for p,c in paths.items() %}<li>{{ p }}: {{ c }}</li>{% endfor %}</ul>
-    """,
-
-    "admin": open("templates/admin.html", "r", encoding="utf-8").read() if os.path.exists("templates/admin.html") else """
-    <h1>Admin Panel</h1>
-    <form method="post" action="/admin/toggle_maintenance">
-      <button>{{ 'Disable' if maintenance else 'Enable' }} Maintenance</button>
-    </form>
-    <h2>Users</h2>
-    {% for u,d in users.items() %}
-    <p><b>{{ u }}</b> - {{ d.email }} 
-       {% if d.banned %}(BANNED){% endif %}
-       <form method="post" action="/admin/ban_user/{{ u }}" style="display:inline">
-         <button>{{ 'Unban' if d.banned else 'Ban' }}</button>
-       </form>
-       <form method="post" action="/admin/warn_user/{{ u }}" style="display:inline">
-         <input name="message" placeholder="Warning" size="20">
-         <button>Warn</button>
-       </form>
-    </p>
-    {% endfor %}
-    """,
-
-    "404": open("404.html", "r", encoding="utf-8").read() if os.path.exists("404.html") else """
-    <h1>404 - Site Not Found</h1>
-    """,
-
-    "maintenance": """
-    <h1>Maintenance Mode</h1><p>Platform Render is under maintenance. Back soon!</p>
-    """
+    "index": load_template("index.html", "<h1>Platform Render</h1><p>Free static hosting.</p><a href='/auth/signup'>Signup</a>"),
+    "pricing": load_template("pricing.html", "<h1>Pricing</h1><p>Free: 5 sites | Pro: Unlimited</p>"),
+    "projects": load_template("projects.html", "<h1>Projects</h1><p>Coming soon...</p>"),
+    "login": load_template("login.html", "<form method='post'><input name='username' placeholder='Username' required><input name='password' type='password' placeholder='Password' required><button>Login</button></form>"),
+    "signup": load_template("signup.html", "<form method='post'><input name='username' placeholder='Username' required><input name='email' type='email' placeholder='Email' required><input name='password' type='password' placeholder='Password' required><button>Signup</button></form>"),
+    "dashboard": load_template("dashboard.html", "<h1>Dashboard</h1><a href='/dashboard/upload'>Upload</a>"),
+    "upload": load_template("upload.html", "<form method='post' enctype='multipart/form-data'><input name='sitename' placeholder='myblog' required><input type='file' name='file' required><button>Upload</button></form>"),
+    "analytics": load_template("analytics.html", "<h1>Analytics: {{ sitename }}</h1><p>Total: {{ total }}</p>"),
+    "admin": load_template("admin.html", "<h1>Admin</h1>"),
+    "404": load_template("../404.html", "<h1>404 - Site Not Found</h1>"),
+    "maintenance": "<h1>Maintenance</h1><p>Platform Render is under maintenance.</p>"
 }
 
 # ----------------------------------------------------------------------
 # RUN
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
