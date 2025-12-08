@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="p-8">
+  <h1 class="text-4xl font-bold mb-8">Admin Panel</h1>
+  <div class="grid grid-cols-3 gap-6 mb-8">
+    <div class="stat shadow">
+      <div class="stat-title">Total Users</div>
+      <div class="stat-value">{{ total_users }}</div>
+    </div>
+    <div class="stat shadow">
+      <div class="stat-title">Total Sites</div>
+      <div class="stat-value">{{ total_sites }}</div>
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="table table-zebra">
+      <thead><tr><th>User</th><th>Sites</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for name, data in users.items() %}
+        <tr>
+          <td>{{ name }} {% if data.banned %}(BANNED){% endif %}</td>
+          <td>{{ [s for s in sites if s.owner == name]|length }}</td>
+          <td>
+            <a href="/admin/ban_user/{{ name }}" class="btn btn-xs btn-error">Ban</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
