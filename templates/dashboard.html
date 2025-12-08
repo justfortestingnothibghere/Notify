@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="navbar bg-base-100 shadow-lg">
+  <div class="flex-1 px-6">
+    <a href="/" class="btn btn-ghost text-xl">TeamDev</a>
+  </div>
+  <div class="flex-none">
+    <span class="mr-4">Hi, {{ username }}</span>
+    <a href="/auth/logout" class="btn btn-ghost">Logout</a>
+  </div>
+</div>
+
+<div class="container mx-auto p-8">
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-4xl font-bold">Your Sites</h1>
+    <a href="/dashboard/upload" class="btn btn-success">+ Upload New Site</a>
+  </div>
+
+  <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    {% for site in sites %}
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">{{ site.sitename }}</h2>
+        <p><a href="https://{{ site.sitename }}.{{ DOMAIN }}" target="_blank" class="link link-primary">
+          {{ site.sitename }}.{{ DOMAIN }}
+        </a></p>
+        <div class="card-actions justify-end mt-4">
+          <form method="post" action="/dashboard/toggle/{{ site.sitename }}" class="inline">
+            <button class="btn btn-sm {{ 'btn-error' if not site.paused else 'btn-success' }}">
+              {{ 'Paused' if site.paused else 'Live' }}
+            </button>
+          </form>
+          <form method="post" action="/dashboard/delete/{{ site.sitename }}" onsubmit="return confirm('Delete forever?')">
+            <button class="btn btn-sm btn-error">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
