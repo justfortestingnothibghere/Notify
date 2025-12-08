@@ -6,17 +6,20 @@ import zipfile
 import secrets
 import shutil
 from datetime import datetime
-from flask import Flask, request, render_template_string, redirect, url_for, session, send_from_directory, abort, flash
+from flask import Flask, request, render_template, redirect, url_for, session, send_from_directory, abort, flash, request
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
+app.secret_key = secrets.token_hex(32)
 
-# ----------------------------------------------------------------------
-# PATHS & DB
-# ----------------------------------------------------------------------
+# ========================= CONFIG =========================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_ROOT = os.path.join(BASE_DIR, "static", "uploads")
 DB_DIR = os.path.join(BASE_DIR, "database")
+DOMAIN = "teamdev.sbs"
+
+# Hardcoded Admin (CHANGE THIS PASSWORD!)
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "TeamDev2025!@#Secure"   # CHANGE THIS!
 
 os.makedirs(UPLOAD_ROOT, exist_ok=True)
 os.makedirs(DB_DIR, exist_ok=True)
@@ -28,42 +31,22 @@ DB = {
     "logs": os.path.join(DB_DIR, "logs.json")
 }
 
-# Initialize DB files correctly
 for path in DB.values():
     if not os.path.exists(path):
-        if "analytics" in path:
-            default = {}  # { "sitename": [visits] }
-        elif "logs" in path:
-            default = []  # [log entries]
-        else:
-            default = {}  # users, sites
+        default = {} if "analytics" not in path and "logs" not in path else ([] if "logs" in path else {})
         with open(path, "w") as f:
             json.dump(default, f, indent=2)
 
-# ----------------------------------------------------------------------
-# DB HELPERS
-# ----------------------------------------------------------------------
-def load_json(path):
-    with open(path, "r") as f:
-        return json.load(f)
+# ========================= HELPERS =========================
+def load_json(path): 
+    with open(path, "r") as f: return json.load(f)
+def save_json(path, data): 
+    with open(path, "w") as f: json.dump(data, f, indent=2)
 
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
-def get_users():
-    return load_json(DB["users"])
-
-def get_sites():
-    return load_json(DB["sites"])
-
-def get_analytics():
-    data = load_json(DB["analytics"])
-    return data if isinstance(data, dict) else {}
-
-def get_logs():
-    data = load_json(DB["logs"])
-    return data if isinstance(data, list) else []
+def get_users(): return load_json(DB["users"])
+def get_sites(): return load_json(DB["sites"])
+def get_analytics(): return load_json(DB["analytics"])
+def get_logs(): return load_json(DB["logs"])
 
 def save_users(d): save_json(DB["users"], d)
 def save_sites(d): save_json(DB["sites"], d)
@@ -72,388 +55,168 @@ def save_logs(d): save_json(DB["logs"], d)
 
 def log_action(user, action, details=""):
     logs = get_logs()
-    logs.append({
-        "user": user or "system",
-        "action": action,
-        "details": details,
-        "timestamp": datetime.now().isoformat()
-    })
-    save_logs(logs[-1000:])  # Keep last 1000
+    logs.append({"user": user or "system", "action": action, "details": details, "time": datetime.now().isoformat()})
+    save_logs(logs[-1000:])
 
-def hash_password(pwd):
-    return hashlib.sha256(pwd.encode()).hexdigest()
+def hash_password(p): return hashlib.sha256(p.encode()).hexdigest()
 
-# ----------------------------------------------------------------------
-# MAINTENANCE MODE
-# ----------------------------------------------------------------------
-MAINTENANCE = False
-
-@app.before_request
-def check_maintenance():
-    if MAINTENANCE and request.path not in ['/admin', '/auth/login', '/auth/logout'] and not session.get("is_admin"):
-        return render_template_string(TEMPLATES["maintenance"]), 503
-
-# ----------------------------------------------------------------------
-# AUTH
-# ----------------------------------------------------------------------
-@app.route("/auth/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        username = request.form["username"].strip().lower()
-        email = request.form["email"].strip()
-        password = request.form["password"]
-
-        users = get_users()
-        if username in users:
-            flash("Username already exists!")
-            return redirect(url_for("signup"))
-
-        users[username] = {
-            "email": email,
-            "password": hash_password(password),
-            "created_at": datetime.now().strftime("%Y-%m-%d"),
-            "is_admin": False,
-            "banned": False,
-            "warnings": []
-        }
-        save_users(users)
-        log_action("system", "signup", f"New user: {username}")
-        flash("Account created! Please login.")
-        return redirect(url_for("login"))
-
-    return render_template_string(TEMPLATES["signup"])
+# ========================= ROUTES =========================
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 @app.route("/auth/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form["username"].strip().lower()
         password = request.form["password"]
+
+        # Admin login
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session["user"] = ADMIN_USERNAME
+            session["is_admin"] = True
+            log_action(ADMIN_USERNAME, "admin_login")
+            return redirect("/admin")
+
         users = get_users()
         user = users.get(username)
-
         if user and not user.get("banned") and user["password"] == hash_password(password):
             session["user"] = username
             session["is_admin"] = user.get("is_admin", False)
             log_action(username, "login")
-            return redirect(url_for("dashboard"))
-        flash("Invalid credentials or banned account.")
-    return render_template_string(TEMPLATES["login"])
+            return redirect("/dashboard")
+        flash("Invalid credentials or banned account", "error")
+    return render_template("login.html")
+
+@app.route("/auth/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        username = request.form["username"].strip().lower()
+        email = request.form["email"].strip()
+        password = request.form["password"]
+        if len(password) < 6:
+            flash("Password too short", "error"); return redirect("/auth/signup")
+
+        users = get_users()
+        if username in users:
+            flash("Username taken", "error"); return redirect("/auth/signup")
+
+        users[username] = {
+            "email": email, "password": hash_password(password),
+            "created_at": datetime.now().strftime("%Y-%m-%d"),
+            "is_admin": False, "banned": False, "warnings": []
+        }
+        save_users(users)
+        log_action("system", "signup", username)
+        flash("Account created! Login now", "success")
+        return redirect("/auth/login")
+    return render_template("signup.html")
 
 @app.route("/auth/logout")
 def logout():
-    user = session.get("user")
-    if user:
-        log_action(user, "logout")
+    log_action(session.get("user"), "logout")
     session.clear()
-    return redirect(url_for("home"))
+    return redirect("/")
 
-# ----------------------------------------------------------------------
-# PAGES
-# ----------------------------------------------------------------------
-@app.route("/")
-def home():
-    return render_template_string(TEMPLATES["index"])
-
-@app.route("/pricing")
-def pricing():
-    return render_template_string(TEMPLATES["pricing"])
-
-@app.route("/projects")
-def projects():
-    return render_template_string(TEMPLATES["projects"])
-
-# ----------------------------------------------------------------------
-# DASHBOARD
-# ----------------------------------------------------------------------
 @app.route("/dashboard")
 def dashboard():
-    if "user" not in session:
-        return redirect(url_for("login"))
+    if "user" not in session: return redirect("/auth/login")
+    sites = [s for s in get_sites().values() if s["owner"] == session["user"]]
+    return render_template("dashboard.html", username=session["user"], sites=sites, DOMAIN=DOMAIN)
 
-    username = session["user"]
-    users = get_users()
-    user_data = users.get(username, {})
-    sites = [s for s in get_sites().values() if s["owner"] == username and not s.get("paused", False)]
-    paused = [s for s in get_sites().values() if s["owner"] == username and s.get("paused", False)]
-
-    return render_template_string(TEMPLATES["dashboard"],
-        username=username, sites=sites, paused=paused, warnings=user_data.get("warnings", []))
-
-# ----------------------------------------------------------------------
-# UPLOAD
-# ----------------------------------------------------------------------
 @app.route("/dashboard/upload", methods=["GET", "POST"])
 def upload_site():
-    if "user" not in session:
-        return redirect(url_for("login"))
-
+    if "user" not in session: return redirect("/auth/login")
     if request.method == "POST":
         sitename = request.form["sitename"].strip().lower()
-        if not sitename.replace("-", "").replace("_", "").isalnum():
-            flash("Invalid sitename. Use letters, numbers, - _")
-            return redirect(url_for("upload_site"))
+        if not sitename.replace("-", "").isalnum():
+            flash("Only letters, numbers and - allowed", "error")
+            return redirect("/dashboard/upload")
 
-        sites = get_sites()
-        if any(s["sitename"] == sitename for s in sites.values()):
-            flash("Sitename already taken!")
-            return redirect(url_for("upload_site"))
-
-        upload_dir = os.path.join(UPLOAD_ROOT, sitename)
-        os.makedirs(upload_dir, exist_ok=True)
+        if any(s["sitename"] == sitename for s in get_sites().values()):
+            flash("Sitename already taken!", "error")
+            return redirect("/dashboard/upload")
 
         file = request.files["file"]
-        if file.filename.endswith(".zip"):
-            with zipfile.ZipFile(file) as z:
-                z.extractall(upload_dir)
-        else:
-            file.save(os.path.join(upload_dir, file.filename))
+        if not file.filename.endswith(".zip"):
+            flash("Only .zip files allowed", "error")
+            return redirect("/dashboard/upload")
 
-        index_found = any(
-            f.lower() == "index.html"
-            for root, _, files in os.walk(upload_dir)
-            for f in files
-        )
+        path = os.path.join(UPLOAD_ROOT, sitename)
+        os.makedirs(path, exist_ok=True)
+        with zipfile.ZipFile(file) as z:
+            z.extractall(path)
 
-        sites[str(len(sites))] = {
-            "sitename": sitename,
-            "owner": session["user"],
+        get_sites()[str(len(get_sites()))] = {
+            "sitename": sitename, "owner": session["user"],
             "uploaded_at": datetime.now().isoformat(),
-            "paused": False,
-            "banned": False,
-            "index_found": index_found
+            "paused": False, "banned": False
         }
-        save_sites(sites)
-        log_action(session["user"], "upload_site", sitename)
-        flash(f"Site '{sitename}' uploaded!")
-        return redirect(url_for("dashboard"))
+        save_sites(get_sites())
+        log_action(session["user"], "upload", sitename)
+        flash(f"Site live → https://{sitename}.{DOMAIN}", "success")
+        return redirect("/dashboard")
+    return render_template("upload.html")
 
-    return render_template_string(TEMPLATES["upload"])
-
-# ----------------------------------------------------------------------
-# SITE ACTIONS
-# ----------------------------------------------------------------------
 @app.route("/dashboard/delete/<sitename>", methods=["POST"])
 def delete_site(sitename):
-    if "user" not in session: return "No", 403
-    sites = get_sites()
-    site = next((s for s in sites.values() if s["sitename"] == sitename and s["owner"] == session["user"]), None)
-    if not site: return "Not found", 404
+    if "user" not in session: return abort(403)
+    sites = {k:v for k,v in get_sites().items() if v["sitename"] != sitename or v["owner"] != session["user"]}
+    save_sites(sites)
+    shutil.rmtree(os.path.join(UPLOAD_ROOT, sitename), ignore_errors=True)
+    flash("Site deleted", "info")
+    return redirect("/dashboard")
 
-    new_sites = {k: v for k, v in sites.items() if v["sitename"] != sitename}
-    save_sites(new_sites)
-
-    path = os.path.join(UPLOAD_ROOT, sitename)
-    if os.path.exists(path):
-        shutil.rmtree(path)
-
-    log_action(session["user"], "delete_site", sitename)
-    flash(f"Site '{sitename}' deleted.")
-    return redirect(url_for("dashboard"))
-
-@app.route("/dashboard/pause/<sitename>", methods=["POST"])
-def pause_site(sitename):
-    if "user" not in session: return "No", 403
-    sites = get_sites()
-    for k, s in sites.items():
+@app.route("/dashboard/toggle/<sitename>", methods=["POST"])
+def toggle_site(sitename):
+    if "user" not in session: return abort(403)
+    for s in get_sites().values():
         if s["sitename"] == sitename and s["owner"] == session["user"]:
             s["paused"] = not s.get("paused", False)
-            save_sites(sites)
-            action = "paused" if s["paused"] else "unpaused"
-            log_action(session["user"], action + "_site", sitename)
+            save_sites(get_sites())
             break
-    return redirect(url_for("dashboard"))
+    return redirect("/dashboard")
 
-@app.route("/dashboard/rename/<old>", methods=["POST"])
-def rename_site(old):
-    if "user" not in session: return "No", 403
-    new = request.form["new_name"].strip().lower()
-    if not new.replace("-", "").replace("_", "").isalnum():
-        flash("Invalid name")
-        return redirect(url_for("dashboard"))
+# ========================= SITE SERVING (SUBDOMAIN) =========================
+@app.route("/", subdomain="<sitename>")
+@app.route("/<path:subpath>", subdomain="<sitename>")
+def subdomain_site(sitename, subpath=""):
+    return serve_site(sitename, subpath)
 
-    sites = get_sites()
-    if any(s["sitename"] == new for s in sites.values()):
-        flash("Name taken")
-        return redirect(url_for("dashboard"))
-
-    for k, s in sites.items():
-        if s["sitename"] == old and s["owner"] == session["user"]:
-            old_path = os.path.join(UPLOAD_ROOT, old)
-            new_path = os.path.join(UPLOAD_ROOT, new)
-            if os.path.exists(old_path):
-                os.rename(old_path, new_path)
-            s["sitename"] = new
-            save_sites(sites)
-            log_action(session["user"], "rename_site", f"{old} to {new}")
-            break
-    return redirect(url_for("dashboard"))
-
-# ----------------------------------------------------------------------
-# ANALYTICS
-# ----------------------------------------------------------------------
-@app.route("/dashboard/analytics/<sitename>")
-def site_analytics(sitename):
-    if "user" not in session:
-        return redirect(url_for("login"))
-
-    sites = get_sites()
-    if not any(s["sitename"] == sitename and s["owner"] == session["user"] for s in sites.values()):
-        return "Not yours", 403
-
-    data = get_analytics().get(sitename, [])
-    total = len(data)
-    unique = len({d["ip"] for d in data})
-    paths = {}
-    for d in data:
-        paths[d["path"]] = paths.get(d["path"], 0) + 1
-
-    return render_template_string(TEMPLATES["analytics"],
-        sitename=sitename, total=total, unique=unique, paths=paths, recent=data[-20:])
-
-# ----------------------------------------------------------------------
-# SERVE SITES (FIXED)
-# ----------------------------------------------------------------------
 @app.route("/<sitename>")
 @app.route("/<sitename>/<path:subpath>")
 def serve_site(sitename, subpath=""):
-    sites = get_sites()
-    site = next((s for s in sites.values() if s["sitename"] == sitename), None)
+    site = next((s for s in get_sites().values() if s["sitename"] == sitename), None)
     if not site or site.get("banned") or site.get("paused"):
-        return render_template_string(TEMPLATES["404"]), 404
+        return render_template("404.html", sitename=sitename), 404
 
-    site_path = os.path.join(UPLOAD_ROOT, sitename)
-    if not os.path.exists(site_path):
-        return render_template_string(TEMPLATES["404"]), 404
-
-    # === FIXED ANALYTICS LOGGING ===
+    path = os.path.join(UPLOAD_ROOT, sitename, subpath) if subpath else os.path.join(UPLOAD_ROOT, sitename)
+    
+    # Analytics
     analytics = get_analytics()
-    if sitename not in analytics:
-        analytics[sitename] = []
-    analytics[sitename].append({
-        "ip": request.remote_addr,
-        "path": "/" + subpath,
-        "ua": request.headers.get("User-Agent", ""),
-        "ref": request.referrer or "direct",
-        "timestamp": datetime.now().isoformat()
+    analytics.setdefault(sitename, []).append({
+        "ip": request.remote_addr, "path": request.path,
+        "ua": request.headers.get("User-Agent"), "time": datetime.now().isoformat()
     })
     save_analytics(analytics)
-    # ===============================
 
-    full_path = os.path.join(site_path, subpath) if subpath else site_path
+    if os.path.isfile(path):
+        return send_from_directory(os.path.dirname(path), os.path.basename(path))
+    if os.path.isdir(path) and os.path.isfile(os.path.join(path, "index.html")):
+        return send_from_directory(path, "index.html")
+    return render_template("404.html", sitename=sitename), 404
 
-    if os.path.isfile(full_path):
-        return send_from_directory(os.path.dirname(full_path), os.path.basename(full_path))
-
-    index_path = os.path.join(full_path, "index.html")
-    if os.path.isfile(index_path):
-        return send_from_directory(full_path, "index.html")
-
-    return render_template_string(TEMPLATES["404"]), 404
-
-# ----------------------------------------------------------------------
-# ADMIN PANEL
-# ----------------------------------------------------------------------
+# ========================= ADMIN =========================
 @app.route("/admin")
 def admin_panel():
-    if not session.get("is_admin"):
-        return "Access Denied", 403
+    if session.get("user") != ADMIN_USERNAME:
+        return redirect("/auth/login")
+    return render_template("admin.html",
+        users=get_users(), sites=list(get_sites().values()),
+        logs=get_logs()[-100:], total_users=len(get_users()), total_sites=len(get_sites())
+    )
 
-    users = get_users()
-    sites = get_sites()
-    logs = get_logs()
-    return render_template_string(TEMPLATES["admin"],
-        users=users, sites=sites, logs=logs[-50:], maintenance=MAINTENANCE)
+# (Add ban/warn routes if you want – same as before)
 
-@app.route("/admin/toggle_maintenance", methods=["POST"])
-def toggle_maintenance():
-    if not session.get("is_admin"): return "No", 403
-    global MAINTENANCE
-    MAINTENANCE = not MAINTENANCE
-    log_action(session["user"], "maintenance", "ON" if MAINTENANCE else "OFF")
-    return redirect(url_for("admin_panel"))
-
-@app.route("/admin/ban_site/<sitename>", methods=["POST"])
-def ban_site(sitename):
-    if not session.get("is_admin"): return "No", 403
-    sites = get_sites()
-    for k, s in sites.items():
-        if s["sitename"] == sitename:
-            s["banned"] = not s.get("banned", False)
-            save_sites(sites)
-            action = "banned" if s["banned"] else "unbanned"
-            log_action(session["user"], action + "_site", sitename)
-            break
-    return redirect(url_for("admin_panel"))
-
-@app.route("/admin/ban_user/<username>", methods=["POST"])
-def ban_user(username):
-    if not session.get("is_admin"): return "No", 403
-    users = get_users()
-    if username in users:
-        users[username]["banned"] = not users[username].get("banned", False)
-        save_users(users)
-        action = "banned" if users[username]["banned"] else "unbanned"
-        log_action(session["user"], action + "_user", username)
-    return redirect(url_for("admin_panel"))
-
-@app.route("/admin/warn_user/<username>", methods=["POST"])
-def warn_user(username):
-    if not session.get("is_admin"): return "No", 403
-    message = request.form["message"]
-    users = get_users()
-    if username in users:
-        users[username].setdefault("warnings", []).append({
-            "msg": message,
-            "by": session["user"],
-            "at": datetime.now().isoformat()[:19]
-        })
-        save_users(users)
-        log_action(session["user"], "warned_user", f"{username}: {message}")
-    return redirect(url_for("admin_panel"))
-
-@app.route("/admin/make_admin/<username>", methods=["POST"])
-def make_admin(username):
-    if not session.get("is_admin"): return "No", 403
-    users = get_users()
-    if username in users:
-        users[username]["is_admin"] = True
-        save_users(users)
-        log_action(session["user"], "promoted_admin", username)
-    return redirect(url_for("admin_panel"))
-
-# ----------------------------------------------------------------------
-# 404 & MAINTENANCE
-# ----------------------------------------------------------------------
-@app.errorhandler(404)
-def not_found(e):
-    return render_template_string(TEMPLATES["404"]), 404
-
-# ----------------------------------------------------------------------
-# TEMPLATES (Auto-load from files if exist)
-# ----------------------------------------------------------------------
-def load_template(name, default=""):
-    path = os.path.join("templates", name)
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    return default
-
-TEMPLATES = {
-    "index": load_template("index.html", "<h1>Platform Render</h1><p>Free static hosting.</p><a href='/auth/signup'>Signup</a>"),
-    "pricing": load_template("pricing.html", "<h1>Pricing</h1><p>Free: 5 sites | Pro: Unlimited</p>"),
-    "projects": load_template("projects.html", "<h1>Projects</h1><p>Coming soon...</p>"),
-    "login": load_template("login.html", "<form method='post'><input name='username' placeholder='Username' required><input name='password' type='password' placeholder='Password' required><button>Login</button></form>"),
-    "signup": load_template("signup.html", "<form method='post'><input name='username' placeholder='Username' required><input name='email' type='email' placeholder='Email' required><input name='password' type='password' placeholder='Password' required><button>Signup</button></form>"),
-    "dashboard": load_template("dashboard.html", "<h1>Dashboard</h1><a href='/dashboard/upload'>Upload</a>"),
-    "upload": load_template("upload.html", "<form method='post' enctype='multipart/form-data'><input name='sitename' placeholder='myblog' required><input type='file' name='file' required><button>Upload</button></form>"),
-    "analytics": load_template("analytics.html", "<h1>Analytics: {{ sitename }}</h1><p>Total: {{ total }}</p>"),
-    "admin": load_template("admin.html", "<h1>Admin</h1>"),
-    "404": load_template("../404.html", "<h1>404 - Site Not Found</h1>"),
-    "maintenance": "<h1>Maintenance</h1><p>Platform Render is under maintenance.</p>"
-}
-
-# ----------------------------------------------------------------------
-# RUN
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000)
