@@ -1,32 +1,148 @@
 {% extends "base.html" %}
+{% block title %}Admin Panel - Control Center{% endblock %}
+
 {% block content %}
-<div class="p-8">
-  <h1 class="text-4xl font-bold mb-8">Admin Panel</h1>
-  <div class="grid grid-cols-3 gap-6 mb-8">
-    <div class="stat shadow">
+<div class="p-8 max-w-7xl mx-auto">
+  <h1 class="text-4xl font-bold mb-2">Admin Control Panel</h1>
+  <p class="text-gray-500 mb-8">Welcome, <strong>{{ session.user }}</strong> • Full system access</p>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+    <div class="stat bg-base-200 rounded-box shadow">
       <div class="stat-title">Total Users</div>
-      <div class="stat-value">{{ total_users }}</div>
+      <div class="stat-value text-primary">{{ total_users }}</div>
     </div>
-    <div class="stat shadow">
+    <div class="stat bg-base-200 rounded-box shadow">
       <div class="stat-title">Total Sites</div>
-      <div class="stat-value">{{ total_sites }}</div>
+      <div class="stat-value text-secondary">{{ total_sites }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box shadow">
+      <div class="stat-title">Active Sites</div>
+      <div class="stat-value text-success">{{ active_sites }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box shadow">
+      <div class="stat-title">Banned Users</div>
+      <div class="stat-value text-error">{{ banned_users }}</div>
     </div>
   </div>
-  <div class="overflow-x-auto">
-    <table class="table table-zebra">
-      <thead><tr><th>User</th><th>Sites</th><th>Actions</th></tr></thead>
-      <tbody>
-        {% for name, data in users.items() %}
-        <tr>
-          <td>{{ name }} {% if data.banned %}(BANNED){% endif %}</td>
-          <td>{{ sites | selectattr("owner", "equalto", name) | list | length }}</td>
-          <td>
-            <a href="/admin/ban_user/{{ name }}" class="btn btn-xs btn-error">Ban</a>
-          </td>
-        </tr>
+
+  <!-- Quick Actions -->
+  <div class="mb-8 flex gap-4 flex-wrap">
+    <a href="/admin/export/users" class="btn btn-outline btn-info btn-sm">Export Users JSON</a>
+    <a href="/admin/export/sites" class="btn btn-outline btn-accent btn-sm">Export Sites JSON</a>
+    <a href="/admin/clear-logs" class="btn btn-outline btn-warning btn-sm" onclick="return confirm('Clear all logs?')">Clear Logs</a>
+  </div>
+
+  <!-- Users Table -->
+  <div class="card bg-base-100 shadow-xl mb-10">
+    <div class="card-body">
+      <h2 class="card-title text-2xl">Users Management</h2>
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Sites Owned</th>
+              <th>Joined</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for username, data in users.items() %}
+            <tr class="{% if data.banned %}bg-error bg-opacity-10{% endif %}">
+              <td><strong>{{ username }}</strong></td>
+              <td>{{ data.email }}</td>
+              <td>
+                <span class="badge badge-primary">
+                  {{ user_site_count[username] }}
+                </span>
+              </td>
+              <td>{{ data.created_at }}</td>
+              <td>
+                {% if data.banned %}
+                  <span class="badge badge-error">BANNED</span>
+                {% else %}
+                  <span class="badge badge-success">Active</span>
+                {% endif %}
+              </td>
+              <td class="flex gap-2">
+                {% if data.banned %}
+                  <a href="/admin/unban_user/{{ username }}" class="btn btn-xs btn-success">Unban</a>
+                {% else %}
+                  <a href="/admin/ban_user/{{ username }}" class="btn btn-xs btn-error" onclick="return confirm('Ban {{ username }}?')">Ban</a>
+                {% endif %}
+                <a href="/admin/view_user/{{ username }}" class="btn btn-xs btn-ghost">View</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sites Table -->
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-2xl">All Sites</h2>
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>Site URL</th>
+              <th>Owner</th>
+              <th>Uploaded</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for site in sites %}
+            <tr class="{% if site.paused or site.banned %}bg-warning bg-opacity-10{% endif %}">
+              <td>
+                <a href="https://{{ site.sitename }}.{{ DOMAIN }}" target="_blank" class="link link-primary">
+                  {{ site.sitename }}.{{ DOMAIN }}
+                </a>
+              </td>
+              <td>{{ site.owner }}</td>
+              <td>{{ site.uploaded_at[:19] | replace("T", " ") }}</td>
+              <td>
+                {% if site.banned %}
+                  <span class="badge badge-error">BANNED</span>
+                {% elif site.paused %}
+                  <span class="badge badge-warning">PAUSED</span>
+                {% else %}
+                  <span class="badge badge-success">LIVE</span>
+                {% endif %}
+              </td>
+              <td class="flex gap-2">
+                {% if site.paused %}
+                  <a href="/admin/resume_site/{{ site.sitename }}" class="btn btn-xs btn-success">Resume</a>
+                {% else %}
+                  <a href="/admin/pause_site/{{ site.sitename }}" class="btn btn-xs btn-warning">Pause</a>
+                {% endif %}
+                <a href="/admin/delete_site/{{ site.sitename }}" class="btn btn-xs btn-error" onclick="return confirm('DELETE {{ site.sitename }} forever?')">Delete</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Logs -->
+  <div class="mt-10 card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">Recent Activity Logs (Last 50)</h2>
+      <div class="text-xs font-mono overflow-x-auto max-h-96 overflow-y-auto bg-black text-green-400 p-4 rounded">
+        {% for log in logs %}
+        <div>[{{ log.time[:19] | replace("T", " ") }}] {{ log.user }} @ {{ log.ip }} → {{ log.action }} {% if log.details %}({{ log.details }}){% endif %}</div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
