@@ -19,7 +19,7 @@
         {% for name, data in users.items() %}
         <tr>
           <td>{{ name }} {% if data.banned %}(BANNED){% endif %}</td>
-          <td>{{ [s for s in sites if s.owner == name]|length }}</td>
+          <td>{{ sites | selectattr("owner", "equalto", name) | list | length }}</td>
           <td>
             <a href="/admin/ban_user/{{ name }}" class="btn btn-xs btn-error">Ban</a>
           </td>
