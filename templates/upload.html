@@ -5,13 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Upload Site - {{ DOMAIN }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/dropzone.min.css" rel="stylesheet"/>
+
   <style>
     body { background: #f8f9fa; padding-top: 50px; }
-    .dropzone { border: 4px dashed #007bff; border-radius: 16px; background: #fff; padding: 60px; text-align: center; font-size: 1.5rem; transition: all 0.3s; }
-    .dropzone.dragover { border-color: #28a745; background: #f0fff0; }
-    .dz-message { margin: 2em 0; color: #007bff; }
-    .preview { margin-top: 20px; font-size: 0.9rem; max-height: 200px; overflow-y: auto; background: #f1f1f1; padding: 10px; border-radius: 8px; }
+    .preview {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #f1f1f1;
+      padding: 10px;
+      border-radius: 8px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -20,32 +26,38 @@
     <div class="col-md-8">
       <div class="card shadow">
         <div class="card-header bg-primary text-white text-center">
-          <h3>Deploy Your Site (Drag & Drop Folder)</h3>
+          <h3>Deploy Your Site (Upload Full Folder)</h3>
         </div>
+
         <div class="card-body">
           <form action="/dashboard/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+
+            <!-- Subdomain -->
             <div class="mb-4">
               <label class="form-label fw-bold">Subdomain Name</label>
               <div class="input-group">
-                <input type="text" name="sitename" class="form-control form-control-lg" placeholder="my-cool-site" required pattern="[a-zA-Z0-9\-_]+" />
+                <input type="text" name="sitename" class="form-control form-control-lg"
+                  placeholder="my-cool-site" required pattern="[a-zA-Z0-9\-_]+" />
                 <span class="input-group-text">.{{ DOMAIN }}</span>
               </div>
               <small class="text-muted">Only letters, numbers, - and _ allowed</small>
             </div>
 
-            <div class="dropzone" id="dropzone">
-              <div class="dz-message">
-                <i class="bi bi-cloud-upload" style="font-size: 4rem; color: #007bff;"></i><br><br>
-                <strong>Drop your website folder here</strong><br>
-                <span style="font-size: 1.1rem; color: #666;">or click to select</span>
-              </div>
-            </div>
+            <!-- FOLDER UPLOAD -->
+            <label class="form-label fw-bold mt-3">Select Website Folder</label>
+            <input type="file" id="folderInput" webkitdirectory directory multiple
+              class="form-control form-control-lg" required>
 
-            <div id="preview" class="preview mt-3" style="display:none;"></div>
+            <small class="text-muted">Upload full website folder (must contain index.html)</small>
 
+            <!-- PREVIEW -->
+            <div id="preview" class="preview"></div>
+
+            <!-- Deploy -->
             <button type="submit" class="btn btn-success btn-lg w-100 mt-4" id="deployBtn" disabled>
               Deploy Site
             </button>
+
           </form>
         </div>
       </div>
@@ -53,107 +65,72 @@
       <div class="text-center mt-4">
         <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
       </div>
+
     </div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/5.9.3/min/dropzone.min.js"></script>
+
 <script>
-Dropzone.autoDiscover = false;
+const folderInput = document.getElementById("folderInput");
+const preview   = document.getElementById("preview");
+const deployBtn = document.getElementById("deployBtn");
+const form      = document.getElementById("uploadForm");
 
-const dropzone = new Dropzone("#dropzone", {
-  url: "/dashboard/upload",
-  clickable: true,
-  acceptFiles: null, // Allow folders
-  autoProcessQueue: false,
-  addRemoveLinks: false,
-  previewsContainer: "#preview",
-  createImageThumbnails: false,
-  init: function () {
-    const form = document.getElementById("uploadForm");
-    const preview = document.getElementById("preview");
-    const deployBtn = document.getElementById("deployBtn");
+// When folder selected
+folderInput.onchange = () => {
+  const files = folderInput.files;
+  if (!files.length) return;
 
-    this.on("addedfiles", async (files) => {
-      preview.style.display = "block";
-      preview.innerHTML = "<strong>Files selected:</strong><br>" + files.map(f => f.webkitRelativePath || f.name).slice(0, 50).join("<br>");
-      if (files.length > 50) preview.innerHTML += `<br>... and ${files.length - 50} more`;
+  // Show preview
+  preview.style.display = "block";
+  preview.innerHTML = "<strong>Files Selected:</strong><br>" +
+    Array.from(files).map(f => f.webkitRelativePath).slice(0, 70).join("<br>");
 
+  if (files.length > 70)
+    preview.innerHTML += `<br>...and ${files.length - 70} more`;
+
+  deployBtn.disabled = false;
+};
+
+
+// Handle submit
+form.onsubmit = (e) => {
+  e.preventDefault();
+
+  const sitename = form.sitename.value.trim().toLowerCase();
+  if (!sitename) return alert("Please enter a subdomain");
+
+  const files = folderInput.files;
+  if (files.length === 0) return alert("Please select your website folder");
+
+  const formData = new FormData();
+  formData.append("sitename", sitename);
+
+  // Add all files with real folder structure
+  for (let i = 0; i < files.length; i++) {
+    formData.append("files[]", files[i]);
+    formData.append("paths[]", files[i].webkitRelativePath);
+  }
+
+  deployBtn.innerHTML = "Deploying...";
+  deployBtn.disabled = true;
+
+  fetch("/dashboard/upload", {
+    method: "POST",
+    body: formData
+  })
+    .then(r => r.text())
+    .then(() => {
+      window.location.href = "/dashboard";
+    })
+    .catch(() => {
+      alert("Upload failed");
+      deployBtn.innerHTML = "Deploy Site";
       deployBtn.disabled = false;
     });
-
-    form.onsubmit = (e) => {
-      e.preventDefault();
-
-      const sitename = form.sitename.value.trim().toLowerCase();
-      if (!sitename) return alert("Enter a subdomain name");
-
-      const dt = new DataTransfer();
-      const paths = [];
-      const collectFiles = (entry, path = "") => {
-        return new Promise((resolve) => {
-          if (entry.isFile) {
-            entry.file(file => {
-              file.webkitRelativePath = path + file.name;
-              dt.items.add(file);
-              paths.push(path + file.name);
-              resolve();
-            });
-          } else if (entry.isDirectory) {
-            const dirReader = entry.createReader();
-            dirReader.readEntries(entries => {
-              Promise.all(entries.map(e => collectFiles(e, path + entry.name + "/"))).then(resolve);
-            });
-          }
-        });
-      };
-
-      Promise.all(Array.from(dropzone.files).map(file => {
-        if (file.webkitRelativePath) {
-          dt.items.add(file);
-          paths.push(file.webkitRelativePath);
-        }
-        return Promise.resolve();
-      })).then(() => {
-        if (dt.files.length === 0) {
-          const items = dropzone.files[0].webkitGetAsEntry();
-          if (items && items.isDirectory) {
-            collectFiles(items).then(() => {
-              submitUpload(dt.files, paths);
-            });
-          } else {
-            submitUpload(dropzone.files, dropzone.files.map(f => f.webkitRelativePath || ""));
-          }
-        } else {
-          submitUpload(dt.files, paths);
-        }
-      });
-    };
-
-    function submitUpload(files, paths) {
-      const formData = new FormData();
-      formData.append("sitename", form.sitename.value.trim().toLowerCase());
-      for (let i = 0; i < files.length; i++) {
-        formData.append("files[]", files[i]);
-        formData.append("paths[]", paths[i] || files[i].name);
-      }
-
-      deployBtn.innerHTML = "Deploying...";
-      deployBtn.disabled = true;
-
-      fetch("/dashboard/upload", {
-        method: "POST",
-        body: formData
-      }).then(r => r.text()).then(html => {
-        window.location.href = "/dashboard";
-      }).catch(() => {
-        alert("Upload failed");
-        deployBtn.innerHTML = "Deploy Site";
-        deployBtn.disabled = false;
-      });
-    }
-  }
-});
+};
 </script>
+
 </body>
 </html>
