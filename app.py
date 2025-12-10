@@ -21,6 +21,8 @@ DOMAIN = "teamdev.sbs"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "TeamDev2025!@#Secure"   # CHANGE THIS!
 
+app.config["SERVER_NAME"] = "teamdev.sbs"
+
 os.makedirs(UPLOAD_ROOT, exist_ok=True)
 os.makedirs(DB_DIR, exist_ok=True)
 
