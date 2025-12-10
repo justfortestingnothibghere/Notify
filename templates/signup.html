@@ -1,19 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-base-200">
-  <div class="card w-96 bg-base-100 shadow-2xl">
-    <div class="card-body">
-      <h2 class="card-title text-3xl justify-center mb-6">Create Account</h2>
-      <form method="post">
-        <input type="text" name="username" placeholder="Username" class="input input-bordered w-full mb-4" required>
-        <input type="email" name="email" placeholder="Email" class="input input-bordered w-full mb-4" required>
-        <input type="password" name="password" placeholder="Password (6+ chars)" class="input input-bordered w-full" required>
-        <button class="btn btn-primary w-full mt-6">Sign Up</button>
-      </form>
-      <p class="text-center mt-6">
-        Have account? <a href="/auth/login" class="link link-primary">Login</a>
-      </p>
-    </div>
+<div class="min-h-screen flex items-center justify-center px-6 relative z-10">
+  <div class="glass card w-full max-w-md shadow-2xl border border-white/20 p-10 rounded-3xl">
+    <h2 class="text-4xl font-bold text-center mb-10 text-cyan-400">Join TeamDev.SBS 🚀</h2>
+    <form method="post" class="space-y-6">
+      <div class="relative">
+        <input type="text" name="username" required class="input input-bordered w-full bg-transparent border-white/20 focus:border-cyan-400 peer pt-6">
+        <label class="absolute left-4 top-4 text-gray-400 peer-focus:text-cyan-400 peer-focus:-translate-y-4 peer-focus:scale-90 transition-all">Username</label>
+      </div>
+      <div class="relative">
+        <input type="email" name="email" required class="input input-bordered w-full bg-transparent border-white/20 focus:border-cyan-400 peer pt-6">
+        <label class="absolute left-4 top-4 text-gray-400 peer-focus:text-cyan-400 peer-focus:-translate-y-4 peer-focus:scale-90 transition-all">Email</label>
+      </div>
+      <div class="relative">
+        <input type="password" name="password" required minlength="6" class="input input-bordered w-full bg-transparent border-white/20 focus:border-cyan-400 peer pt-6">
+        <label class="absolute left-4 top-4 text-gray-400 peer-focus:text-cyan-400 peer-focus:-translate-y-4 peer-focus:scale-90 transition-all">Password (6+ chars)</label>
+      </div>
+      <button class="btn btn-primary w-full text-lg py-4 rounded-2xl tilt-btn">Create Account</button>
+    </form>
+    <p class="text-center mt-8 text-gray-400">
+      Already have an account? <a href="/auth/login" class="text-cyan-400 font-bold hover:underline">Login →</a>
+    </p>
   </div>
 </div>
 {% endblock %}
