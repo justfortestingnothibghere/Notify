@@ -9,12 +9,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
-  <!-- Bootstrap + Custom -->
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   
-  <!-- GSAP for animations -->
+  <!-- GSAP -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
   <style>
     :root {
@@ -32,15 +31,7 @@
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       color: var(--text);
       min-height: 100vh;
-      overflow-x: hidden;
       padding-top: 60px;
-    }
-
-    .floating-bg {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none;
-      z-index: 1;
     }
 
     .card {
@@ -49,187 +40,165 @@
       border: 1px solid rgba(255,255,255,0.1);
       border-radius: 24px;
       overflow: hidden;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.2);
-      position: relative;
-      z-index: 10;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
     }
 
     .card-header {
-      background: linear 45deg, var(--primary), var(--primary-dark);
-      padding: 2rem;
+      background: linear-gradient(45deg, var(--primary), var(--primary-dark));
+      padding: 2.5rem;
       border: none;
     }
 
     .title-text {
-      font-size: 2.2rem;
+      font-size: 2.4rem;
       font-weight: 700;
       margin: 0;
     }
 
     .drop-zone {
       border: 2.5px dashed rgba(99, 102, 241, 0.4);
-      border-radius: 16px;
-      padding: 40px;
+      border-radius: 20px;
+      padding: 50px 20px;
       text-align: center;
       transition: all 0.4s ease;
       background: rgba(99, 102, 241, 0.05);
+      position: relative;
       cursor: pointer;
     }
 
     .drop-zone.dragover {
       border-color: var(--primary);
-      background: rgba(99, 102, 241, 0.15);
-      transform: scale(1.02);
-      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+      background: rgba(99, 102, 241, 0.2);
+      transform: scale(1.03);
+      box-shadow: 0 25px 50px rgba(99, 102, 241, 0.25);
     }
 
     .preview {
-      background: rgba(0,0,0,0.3);
-      border-radius: 12px;
-      padding: 16px;
-      max-height: 300px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 14px;
+      padding: 18px;
+      max-height: 320px;
       overflow-y: auto;
       font-family: 'Consolas', monospace;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       opacity: 0;
       transform: translateY(20px);
+      margin-top: 20px;
     }
 
-    /* Button Magic */
     .btn-deploy {
       background: linear-gradient(45deg, #10b981, #34d399);
       border: none;
-      padding: 16px 32px;
-      font-size: 1.2rem;
+      padding: 18px;
+      font-size: 1.25rem;
       font-weight: 600;
       border-radius: 50px;
-      position: relative;
       overflow: hidden;
+      box-shadow: 0 12px 30px rgba(16, 185, 129, 0.4);
       transition: all 0.4s ease;
-      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
     }
 
     .btn-deploy:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 40px rgba(16, 185, 129, 0.4);
-    }
-
-    .btn-deploy:active {
-      transform: translateY(0);
+      transform: translateY(-5px);
+      box-shadow: 0 25px 50px rgba(16, 185, 129, 0.5);
     }
 
     .btn-deploy::before {
       content: '';
       position: absolute;
       top: 0; left: -100%;
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
       transition: 0.7s;
     }
 
-    .btn-deploy:hover::before {
-      left: 100%;
-    }
+    .btn-deploy:hover::before { left: 100%; }
 
     .spinner {
-      width: 24px;
-      height: 24px;
+      width: 24px; height: 24px;
       border: 3px solid rgba(255,255,255,0.3);
       border-top-color: white;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       display: inline-block;
-      margin-left: 10px;
+      margin-left: 12px;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Typing Animation */
     .typing {
       overflow: hidden;
-      border-right: 3px solid var(--primary);
+      border-right: 3px solid white;
       white-space: nowrap;
-      animation: typing 3.5s steps(30, end), blink 0.75s step-end infinite;
+      animation: typing 3.5s steps(30) forwards, blink 0.75s step-end infinite;
     }
 
-    @keyframes typing {
-      from { width: 0 }
-      to { width: 100% }
-    }
-
-    @keyframes blink {
-      from, to { border-color: transparent }
-      50% { border-color: var(--primary); }
-    }
-
-    /* 3D Tilt */
-    .tilt-card {
-      transform: perspective(1000px) rotateX(0) rotateY(0);
-    }
+    @keyframes typing { from { width: 0 } to { width: 100% } }
+    @keyframes blink { from, to { border-color: transparent } 50% { border-color: white; } }
   </style>
 </head>
 <body>
 
-  <!-- Floating Background Particles (optional) -->
-  <div class="floating-bg" id="particles"></div>
-
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-7 col-md-9">
-        
-        <div class="card shadow-lg tilt-card" id="mainCard">
+
+        <div class="card shadow-lg" id="mainCard">
           <div class="card-header text-center text-white">
-            <h1 class="title-text">
-              <span class="typing">Deploy Your Site</span>
-            </h1>
-            <p class="mb-0 opacity-90">Instantly publish full websites • {{ DOMAIN }}</p>
+            <h1 class="title-text"><span class="typing">Deploy Your Site</span></h1>
+            <p class="mb-0 opacity-90 fs-5">Instant full-site hosting • <strong>.{{ DOMAIN }}</strong></p>
           </div>
 
           <div class="card-body p-5">
 
             <form id="uploadForm" novalidate>
 
-              <!-- Subdomain -->
-              <div class="mb-4">
-                <label class="form-label fw-bold text-light">Subdomain</label>
+              <!-- Subdomain Input -->
+              <div class="mb-5">
+                <label class="form-label fw-bold text-light">Subdomain Name</label>
                 <div class="input-group input-group-lg">
                   <input type="text" name="sitename" class="form-control bg-dark border-0 text-white"
-                    placeholder="my-awesome-project" required pattern="[a-zA-Z0-9\-_]+"
-                    style="border-radius: 16px 0 0 16px;">
-                  <span class="input-group-text bg-primary text-white border-0">.{{ DOMAIN }}</span>
+                         placeholder="my-cool-project" required pattern="[a-zA-Z0-9\-_]+"
+                         style="border-radius: 16px 0 0 16px; height: 58px;">
+                  <span class="input-group-text bg-primary text-white border-0" style="border-radius: 0 16px 16px 0;">
+                    .{{ DOMAIN }}
+                  </span>
                 </div>
-                <small class="text-muted">Letters, numbers, hyphens & underscores only</small>
+                <small class="text-muted">Only letters, numbers, hyphens, and underscores</small>
               </div>
 
-              <!-- Drop Zone -->
+              <!-- Folder Upload (FIXED!) -->
               <div class="mt-5">
-                <label class="form-label fw-bold text-light">Website Folder</label>
-                <div class="drop-zone" id="dropZone">
-                  <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-                  <p class="mb-2 fw-bold">Drop your folder here or click to browse</p>
-                  <small class="text-muted">Must contain <code>index.html</code></small>
-                  <input type="file" id="folderInput" webkitdirectory directory multiple required
-                    style="opacity: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer;">
+                <label class="form-label fw-bold text-light mb-3">Website Folder</label>
+                <div class="drop-zone position-relative" id="dropZone">
+                  <i class="fas fa-cloud-upload-alt fa-4x mb-4 text-primary opacity-75"></i>
+                  <p class="mb-2 fw-bold fs-4">Drop your folder here</p>
+                  <p class="text-muted mb-0">or <span class="text-primary fw-bold" style="text-decoration: underline;">click to browse</span></p>
+                  <small class="text-muted d-block mt-2">Must contain <code>index.html</code> in root</small>
+
+                  <!-- Hidden File Input (only one!) -->
+                  <input type="file"
+                         id="folderInput"
+                         webkitdirectory directory multiple
+                         required
+                         style="position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 5;">
                 </div>
               </div>
 
-              <!-- Preview -->
-              <div id="preview" class="preview mt-4"></div>
+              <!-- File Preview -->
+              <div id="preview" class="preview"></div>
 
               <!-- Deploy Button -->
-              <button type="submit" class="btn btn-deploy w-100 mt-5" id="deployBtn" disabled>
+              <button type="submit" class="btn btn-deploy w-100 mt-5 position-relative" id="deployBtn" disabled>
                 <span id="btnText">Deploy Site</span>
               </button>
 
             </form>
           </div>
 
-          <div class="card-footer text-center bg-transparent border-0 pb-4">
-            <a href="/dashboard" class="btn btn-outline-light btn-sm rounded-pill px-4">
-              <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+          <div class="card-footer text-center bg-transparent border-0 py-4">
+            <a href="/dashboard" class="btn btn-outline-light rounded-pill px-5">
+              Back to Dashboard
             </a>
           </div>
         </div>
@@ -239,75 +208,80 @@
   </div>
 
 <script>
-// 3D Tilt Effect with Vanilla Tilt.js alternative (lightweight)
-document.getElementById('mainCard').addEventListener('mousemove', (e) => {
-  const card = e.currentTarget;
+// 3D Tilt Effect
+const card = document.getElementById('mainCard');
+card.addEventListener('mousemove', (e) => {
   const rect = card.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
   const centerX = rect.width / 2;
   const centerY = rect.height / 2;
-  const rotateY = (x - centerX) / 15;
-  const rotateX = (centerY - y) / 15;
+  const rotateY = (x - centerX) / 20;
+  const rotateX = (centerY - y) / 20;
 
-  card.style.transform = `perspective(1000px) rotateX(\( {rotateX}deg) rotateY( \){rotateY}deg) scale(1.02)`;
+  card.style.transform = `perspective(1200px) rotateX(\( {rotateX}deg) rotateY( \){rotateY}deg) scale(1.03)`;
 });
 
-document.getElementById('mainCard').addEventListener('mouseleave', (e) => {
-  e.currentTarget.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale(1)';
+card.addEventListener('mouseleave', () => {
+  card.style.transform = 'perspective(1200px) rotateX(0) rotateY(0) scale(1)';
 });
 
-// File handling
+// File Handling
 const folderInput = document.getElementById('folderInput');
 const dropZone = document.getElementById('dropZone');
 const preview = document.getElementById('preview');
 const deployBtn = document.getElementById('deployBtn');
 const btnText = document.getElementById('btnText');
 
-['dragover', 'dragenter'].forEach(evt => {
-  dropZone.addEventListener(evt, (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-});
+// Click drop zone → open file picker
+dropZone.addEventListener('click', () => folderInput.click());
 
-['dragleave', 'drop'].forEach(evt => {
-  dropZone.addEventListener(evt, (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-  });
-});
+// Drag & Drop Effects
+['dragover', 'dragenter'].forEach(e => dropZone.addEventListener(e, (ev) => {
+  ev.preventDefault();
+  dropZone.classList.add('dragover');
+}));
 
-folderInput.onchange = () => {
+['dragleave', 'drop'].forEach(e => dropZone.addEventListener(e, (ev) => {
+  ev.preventDefault();
+  dropZone.classList.remove('dragover');
+}));
+
+// When files selected
+folderInput.addEventListener('change', () => {
   const files = folderInput.files;
   if (!files.length) return;
 
-  gsap.to(preview, { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.7)" });
-  preview.style.display = "block";
-  preview.innerHTML = `<strong class="text-success">${files.length} files selected:</strong><br>` +
-    Array.from(files)
-      .map(f => `<span style="color:#94a3b8">📁 ${f.webkitRelativePath || f.name}</span>`)
-      .slice(0, 50)
-      .join("<br>");
+  preview.style.display = 'block';
+  gsap.to(preview, { opacity: 1, y: 0, duration: 0.7, ease: "back.out(1.7)" });
 
-  if (files.length > 50) preview.innerHTML += `<br><span class="text-muted">...and ${files.length - 50} more</span>`;
+  preview.innerHTML = `<strong class="text-success">Selected ${files.length} files:</strong><br>` +
+    Array.from(files)
+      .map(f => `📁 ${f.webkitRelativePath || f.name}`)
+      .slice(0, 60)
+      .join('<br>');
+
+  if (files.length > 60) preview.innerHTML += `<br><span class="text-muted">...and ${files.length - 60} more</span>`;
 
   deployBtn.disabled = false;
-  gsap.fromTo(deployBtn, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "elastic.out(1,0.5)" });
-};
+  gsap.fromTo(deployBtn, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "elastic.out(1,0.5)" });
+});
 
-// Submit
+// Form Submit
 document.getElementById('uploadForm').onsubmit = async (e) => {
   e.preventDefault();
 
   const sitename = e.target.sitename.value.trim().toLowerCase();
-  if (!sitename) return alert("Enter a subdomain");
+  if (!sitename || !/^[a-z0-9\-_]+$/.test(sitename)) {
+    return alert("Please enter a valid subdomain name");
+  }
 
   const files = folderInput.files;
-  if (!files.length) return alert("Select a folder");
+  if (!files.length) return alert("Please select your website folder");
 
   const formData = new FormData();
   formData.append("sitename", sitename);
+
   for (let file of files) {
     formData.append("files[]", file);
     formData.append("paths[]", file.webkitRelativePath);
@@ -317,15 +291,21 @@ document.getElementById('uploadForm').onsubmit = async (e) => {
   deployBtn.disabled = true;
 
   try {
-    await fetch("/dashboard/upload", {
+    const res = await fetch("/dashboard/upload", {
       method: "POST",
       body: formData
     });
-    gsap.to(".card", { y: -100, opacity: 0, duration: 1, onComplete: () => {
-      window.location.href = "/dashboard";
-    }});
+
+    if (res.ok) {
+      gsap.to(".card", {
+        y: -150, opacity: 0, duration: 1.2, ease: "power2.in",
+        onComplete: () => window.location.href = "/dashboard"
+      });
+    } else {
+      throw new Error("Upload failed");
+    }
   } catch (err) {
-    alert("Upload failed!");
+    alert("Upload failed. Please try again.");
     btnText.textContent = "Deploy Site";
     deployBtn.disabled = false;
   }
