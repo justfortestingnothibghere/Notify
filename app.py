@@ -1,4 +1,3 @@
-# app.py
 import os
 import json
 import hashlib
@@ -17,13 +16,8 @@ UPLOAD_ROOT = os.path.join(BASE_DIR, "static", "uploads")
 DB_DIR = os.path.join(BASE_DIR, "database")
 DOMAIN = "teamdev.sbs"
 
-# Hardcoded Admin - CHANGE THIS IN PRODUCTION!
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "TeamDev2025!@#Secure"  # CHANGE THIS!
-
-# DO NOT SET SERVER_NAME HERE WHEN USING CUSTOM DOMAINS ON RENDER
-# Remove this line completely for Render.com + wildcard domains
-# app.config["SERVER_NAME"] = "teamdev.sbs"   ← REMOVED (this was breaking everything)
+ADMIN_PASSWORD = "TeamDev2025!@#Secure"
 
 os.makedirs(UPLOAD_ROOT, exist_ok=True)
 os.makedirs(DB_DIR, exist_ok=True)
@@ -76,12 +70,14 @@ def log_action(user, action, details=""):
 
 def hash_password(p): return hashlib.sha256(p.encode()).hexdigest()
 
-# ========================= DYNAMIC SUBDOMAIN HANDLING =========================
+# ========================= SUBDOMAIN HANDLING =========================
 def get_subdomain():
     host = request.host.lower()
+    sub = None
     if host.endswith(f".{DOMAIN}"):
-        return host[:-len(f".{DOMAIN}")].split(":")[0]  # Remove port if any
-    return None
+        sub = host[:-len(f".{DOMAIN}")].split(":")[0]
+    print(f"[DEBUG] HOST: {host} | SUBDOMAIN: {sub}")
+    return sub
 
 # ========================= ROUTES =========================
 @app.route("/")
@@ -89,14 +85,13 @@ def home():
     subdomain = get_subdomain()
     if subdomain:
         return serve_site(subdomain, "")
-    return render_template("index.html")  # Main marketing page
+    return render_template("index.html")
 
 @app.route("/<path:path>")
 def catch_all(path):
     subdomain = get_subdomain()
     if subdomain:
         return serve_site(subdomain, path)
-    # If no subdomain, treat as main site routes (dashboard, login, etc.)
     return redirect("/")
 
 # ========================= AUTH =========================
@@ -110,7 +105,6 @@ def login():
             flash("Missing credentials", "error")
             return redirect("/auth/login")
 
-        # Admin Login
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session["user"] = ADMIN_USERNAME
             session["is_admin"] = True
@@ -119,7 +113,6 @@ def login():
 
         users = get_users()
         user_data = users.get(username, {})
-
         if user_data.get("banned"):
             flash("Account is banned", "error")
         elif user_data and user_data["password"] == hash_password(password):
@@ -149,7 +142,7 @@ def signup():
 
         users = get_users()
         if username in users:
-            flash("Username already taken", "error"); return redirect("/auth/signup")
+            flash("Username already taken!", "error"); return redirect("/auth/signup")
 
         users[username] = {
             "email": email,
@@ -173,17 +166,16 @@ def logout():
     log_action(user, "logout")
     return redirect("/")
 
-# ========================= USER DASHBOARD =========================
+# ========================= DASHBOARD =========================
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
         return redirect("/auth/login")
-
     all_sites = get_sites()
     user_sites = [s for s in all_sites.values() if s["owner"] == session["user"]]
     return render_template("dashboard.html", username=session["user"], sites=user_sites, DOMAIN=DOMAIN)
 
-# === REPLACE ONLY THIS ROUTE IN YOUR app.py ===
+# ========================= UPLOAD SITE =========================
 @app.route("/dashboard/upload", methods=["GET", "POST"])
 def upload_site():
     if "user" not in session:
@@ -193,7 +185,7 @@ def upload_site():
         sitename = request.form.get("sitename", "").strip().lower()
         
         if not sitename or not sitename.replace("-", "").replace("_", "").isalnum():
-            flash("Invalid sitename: only letters, numbers, - and _ allowed", "error")
+            flash("Invalid sitename", "error")
             return redirect("/dashboard/upload")
 
         if any(s["sitename"] == sitename for s in get_sites().values()):
@@ -213,29 +205,33 @@ def upload_site():
 
         uploaded_files = 0
         for file, relative_path in zip(files, paths):
-            if file.filename == '' or file.filename == '.':
+            if file.filename in ('', '.'):
                 continue
-
-            # Clean and build full path
             relative_path = relative_path.replace("\\", "/").strip("/")
             safe_path = os.path.join(upload_dir, relative_path)
             safe_dir = os.path.dirname(safe_path)
-
             os.makedirs(safe_dir, exist_ok=True)
-
-            # Security: prevent directory traversal
             if not os.path.abspath(safe_path).startswith(os.path.abspath(upload_dir)):
                 continue
-
             file.save(safe_path)
             uploaded_files += 1
 
         if uploaded_files == 0:
             shutil.rmtree(upload_dir, ignore_errors=True)
-            flash("No valid files were uploaded", "error")
+            flash("No valid files uploaded", "error")
             return redirect("/dashboard/upload")
 
-        # Save site info
+        # Flatten if zip contains a top-level folder
+        for entry in os.listdir(upload_dir):
+            entry_path = os.path.join(upload_dir, entry)
+            if os.path.isdir(entry_path):
+                for root, dirs, files_ in os.walk(entry_path):
+                    for f in files_:
+                        src = os.path.join(root, f)
+                        dst = os.path.join(upload_dir, os.path.relpath(src, entry_path))
+                        shutil.move(src, dst)
+                shutil.rmtree(entry_path)
+
         sites = get_sites()
         sites[str(len(sites))] = {
             "sitename": sitename,
@@ -252,33 +248,7 @@ def upload_site():
 
     return render_template("upload.html", DOMAIN=DOMAIN)
 
-@app.route("/dashboard/delete/<sitename>", methods=["POST"])
-def delete_site(sitename):
-    if "user" not in session:
-        return abort(403)
-    sites = get_sites()
-    new_sites = {k: v for k, v in sites.items() if not (v["sitename"] == sitename and v["owner"] == session["user"])}
-    if len(new_sites) < len(sites):
-        save_sites(new_sites)
-        shutil.rmtree(os.path.join(UPLOAD_ROOT, sitename), ignore_errors=True)
-        log_action(session["user"], "site_deleted", sitename)
-        flash("Site deleted successfully", "success")
-    return redirect("/dashboard")
-
-@app.route("/dashboard/toggle/<sitename>", methods=["POST"])
-def toggle_site(sitename):
-    if "user" not in session:
-        return abort(403)
-    sites = get_sites()
-    for site in sites.values():
-        if site["sitename"] == sitename and site["owner"] == session["user"]:
-            site["paused"] = not site.get("paused", False)
-            save_sites(sites)
-            log_action(session["user"], "site_toggled", f"{sitename} → {'paused' if site['paused'] else 'resumed'}")
-            break
-    return redirect("/dashboard")
-
-# ========================= SITE SERVING (Main Fix) =========================
+# ========================= SITE SERVING =========================
 def serve_site(sitename, subpath=""):
     sites = get_sites()
     site = next((s for s in sites.values() if s["sitename"] == sitename), None)
@@ -286,27 +256,42 @@ def serve_site(sitename, subpath=""):
     if not site or site.get("banned") or site.get("paused"):
         return render_template("404.html", sitename=sitename), 404
 
-    file_path = os.path.join(UPLOAD_ROOT, sitename, subpath) if subpath else os.path.join(UPLOAD_ROOT, sitename)
-    dir_path = os.path.dirname(file_path) if os.path.basename(file_path) else file_path
+    # Default path
+    file_path = os.path.join(UPLOAD_ROOT, sitename, subpath)
+    print(f"[DEBUG] SERVE_SITE: file_path={file_path}")
 
-    # Log visit
-    analytics = get_analytics()
-    analytics.setdefault(sitename, []).append({
-        "ip": request.remote_addr,
-        "path": request.full_path,
-        "ua": request.headers.get("User-Agent"),
-        "time": datetime.now().isoformat()
-    })
-    analytics[sitename] = analytics[sitename][-1000:]  # Limit per site
-    save_analytics(analytics)
-
-    if os.path.isfile(file_path):
-        return send_from_directory(dir_path, os.path.basename(file_path))
     if os.path.isdir(file_path):
         index_path = os.path.join(file_path, "index.html")
         if os.path.isfile(index_path):
             return send_from_directory(file_path, "index.html")
+    elif os.path.isfile(file_path):
+        dir_path = os.path.dirname(file_path)
+        return send_from_directory(dir_path, os.path.basename(file_path))
+
+    # Check for index.html at root if subpath empty
+    root_index = os.path.join(UPLOAD_ROOT, sitename, "index.html")
+    if os.path.isfile(root_index):
+        return send_from_directory(os.path.join(UPLOAD_ROOT, sitename), "index.html")
+
+    print(f"[DEBUG] 404: {file_path}")
     return render_template("404.html", sitename=sitename), 404
+
+# ========================= ERROR ROUTE /er =========================
+@app.route("/er")
+def error_route():
+    subdomain = get_subdomain()
+    if not subdomain:
+        return "No subdomain detected."
+
+    site_dir = os.path.join(UPLOAD_ROOT, subdomain)
+    if not os.path.exists(site_dir):
+        return f"No files uploaded for site {subdomain}"
+
+    all_files = []
+    for root, dirs, files in os.walk(site_dir):
+        for f in files:
+            all_files.append(os.path.relpath(os.path.join(root, f), site_dir))
+    return "<br>".join(all_files) or "No files found"
 
 # ========================= ADMIN PANEL =========================
 @app.route("/admin")
@@ -314,7 +299,6 @@ def admin_panel():
     if session.get("user") != ADMIN_USERNAME or not session.get("is_admin"):
         flash("Access denied", "error")
         return redirect("/auth/login")
-
     return render_template("admin.html",
         users=get_users(),
         sites=list(get_sites().values()),
@@ -325,4 +309,4 @@ def admin_panel():
 
 # ========================= RUN =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
