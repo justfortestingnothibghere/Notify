@@ -3,132 +3,332 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Upload Site - {{ DOMAIN }}</title>
+  <title>Deploy • {{ DOMAIN }}</title>
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <!-- Bootstrap + Custom -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  
+  <!-- GSAP for animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
   <style>
-    body { background: #f8f9fa; padding-top: 50px; }
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --success: #10b981;
+      --gray: #6b7280;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding-top: 60px;
+    }
+
+    .floating-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .card {
+      background: rgba(30, 41, 59, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.2);
+      position: relative;
+      z-index: 10;
+    }
+
+    .card-header {
+      background: linear 45deg, var(--primary), var(--primary-dark);
+      padding: 2rem;
+      border: none;
+    }
+
+    .title-text {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .drop-zone {
+      border: 2.5px dashed rgba(99, 102, 241, 0.4);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      transition: all 0.4s ease;
+      background: rgba(99, 102, 241, 0.05);
+      cursor: pointer;
+    }
+
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.15);
+      transform: scale(1.02);
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+    }
+
     .preview {
-      margin-top: 20px;
-      font-size: 0.9rem;
-      max-height: 250px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 300px;
       overflow-y: auto;
-      background: #f1f1f1;
-      padding: 10px;
-      border-radius: 8px;
-      display: none;
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    /* Button Magic */
+    .btn-deploy {
+      background: linear-gradient(45deg, #10b981, #34d399);
+      border: none;
+      padding: 16px 32px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      border-radius: 50px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.4s ease;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-deploy:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-deploy:active {
+      transform: translateY(0);
+    }
+
+    .btn-deploy::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: 0.7s;
+    }
+
+    .btn-deploy:hover::before {
+      left: 100%;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+      margin-left: 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Typing Animation */
+    .typing {
+      overflow: hidden;
+      border-right: 3px solid var(--primary);
+      white-space: nowrap;
+      animation: typing 3.5s steps(30, end), blink 0.75s step-end infinite;
+    }
+
+    @keyframes typing {
+      from { width: 0 }
+      to { width: 100% }
+    }
+
+    @keyframes blink {
+      from, to { border-color: transparent }
+      50% { border-color: var(--primary); }
+    }
+
+    /* 3D Tilt */
+    .tilt-card {
+      transform: perspective(1000px) rotateX(0) rotateY(0);
     }
   </style>
 </head>
 <body>
-<div class="container">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card shadow">
-        <div class="card-header bg-primary text-white text-center">
-          <h3>Deploy Your Site (Upload Full Folder)</h3>
-        </div>
 
-        <div class="card-body">
-          <form action="/dashboard/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+  <!-- Floating Background Particles (optional) -->
+  <div class="floating-bg" id="particles"></div>
 
-            <!-- Subdomain -->
-            <div class="mb-4">
-              <label class="form-label fw-bold">Subdomain Name</label>
-              <div class="input-group">
-                <input type="text" name="sitename" class="form-control form-control-lg"
-                  placeholder="my-cool-site" required pattern="[a-zA-Z0-9\-_]+" />
-                <span class="input-group-text">.{{ DOMAIN }}</span>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-md-9">
+        
+        <div class="card shadow-lg tilt-card" id="mainCard">
+          <div class="card-header text-center text-white">
+            <h1 class="title-text">
+              <span class="typing">Deploy Your Site</span>
+            </h1>
+            <p class="mb-0 opacity-90">Instantly publish full websites • {{ DOMAIN }}</p>
+          </div>
+
+          <div class="card-body p-5">
+
+            <form id="uploadForm" novalidate>
+
+              <!-- Subdomain -->
+              <div class="mb-4">
+                <label class="form-label fw-bold text-light">Subdomain</label>
+                <div class="input-group input-group-lg">
+                  <input type="text" name="sitename" class="form-control bg-dark border-0 text-white"
+                    placeholder="my-awesome-project" required pattern="[a-zA-Z0-9\-_]+"
+                    style="border-radius: 16px 0 0 16px;">
+                  <span class="input-group-text bg-primary text-white border-0">.{{ DOMAIN }}</span>
+                </div>
+                <small class="text-muted">Letters, numbers, hyphens & underscores only</small>
               </div>
-              <small class="text-muted">Only letters, numbers, - and _ allowed</small>
-            </div>
 
-            <!-- FOLDER UPLOAD -->
-            <label class="form-label fw-bold mt-3">Select Website Folder</label>
-            <input type="file" id="folderInput" webkitdirectory directory multiple
-              class="form-control form-control-lg" required>
+              <!-- Drop Zone -->
+              <div class="mt-5">
+                <label class="form-label fw-bold text-light">Website Folder</label>
+                <div class="drop-zone" id="dropZone">
+                  <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+                  <p class="mb-2 fw-bold">Drop your folder here or click to browse</p>
+                  <small class="text-muted">Must contain <code>index.html</code></small>
+                  <input type="file" id="folderInput" webkitdirectory directory multiple required
+                    style="opacity: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer;">
+                </div>
+              </div>
 
-            <small class="text-muted">Upload full website folder (must contain index.html)</small>
+              <!-- Preview -->
+              <div id="preview" class="preview mt-4"></div>
 
-            <!-- PREVIEW -->
-            <div id="preview" class="preview"></div>
+              <!-- Deploy Button -->
+              <button type="submit" class="btn btn-deploy w-100 mt-5" id="deployBtn" disabled>
+                <span id="btnText">Deploy Site</span>
+              </button>
 
-            <!-- Deploy -->
-            <button type="submit" class="btn btn-success btn-lg w-100 mt-4" id="deployBtn" disabled>
-              Deploy Site
-            </button>
+            </form>
+          </div>
 
-          </form>
+          <div class="card-footer text-center bg-transparent border-0 pb-4">
+            <a href="/dashboard" class="btn btn-outline-light btn-sm rounded-pill px-4">
+              <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+          </div>
         </div>
-      </div>
 
-      <div class="text-center mt-4">
-        <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
       </div>
-
     </div>
   </div>
-</div>
-
 
 <script>
-const folderInput = document.getElementById("folderInput");
-const preview   = document.getElementById("preview");
-const deployBtn = document.getElementById("deployBtn");
-const form      = document.getElementById("uploadForm");
+// 3D Tilt Effect with Vanilla Tilt.js alternative (lightweight)
+document.getElementById('mainCard').addEventListener('mousemove', (e) => {
+  const card = e.currentTarget;
+  const rect = card.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const rotateY = (x - centerX) / 15;
+  const rotateX = (centerY - y) / 15;
 
-// When folder selected
+  card.style.transform = `perspective(1000px) rotateX(\( {rotateX}deg) rotateY( \){rotateY}deg) scale(1.02)`;
+});
+
+document.getElementById('mainCard').addEventListener('mouseleave', (e) => {
+  e.currentTarget.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale(1)';
+});
+
+// File handling
+const folderInput = document.getElementById('folderInput');
+const dropZone = document.getElementById('dropZone');
+const preview = document.getElementById('preview');
+const deployBtn = document.getElementById('deployBtn');
+const btnText = document.getElementById('btnText');
+
+['dragover', 'dragenter'].forEach(evt => {
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+});
+
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+  });
+});
+
 folderInput.onchange = () => {
   const files = folderInput.files;
   if (!files.length) return;
 
-  // Show preview
+  gsap.to(preview, { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.7)" });
   preview.style.display = "block";
-  preview.innerHTML = "<strong>Files Selected:</strong><br>" +
-    Array.from(files).map(f => f.webkitRelativePath).slice(0, 70).join("<br>");
+  preview.innerHTML = `<strong class="text-success">${files.length} files selected:</strong><br>` +
+    Array.from(files)
+      .map(f => `<span style="color:#94a3b8">📁 ${f.webkitRelativePath || f.name}</span>`)
+      .slice(0, 50)
+      .join("<br>");
 
-  if (files.length > 70)
-    preview.innerHTML += `<br>...and ${files.length - 70} more`;
+  if (files.length > 50) preview.innerHTML += `<br><span class="text-muted">...and ${files.length - 50} more</span>`;
 
   deployBtn.disabled = false;
+  gsap.fromTo(deployBtn, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "elastic.out(1,0.5)" });
 };
 
-
-// Handle submit
-form.onsubmit = (e) => {
+// Submit
+document.getElementById('uploadForm').onsubmit = async (e) => {
   e.preventDefault();
 
-  const sitename = form.sitename.value.trim().toLowerCase();
-  if (!sitename) return alert("Please enter a subdomain");
+  const sitename = e.target.sitename.value.trim().toLowerCase();
+  if (!sitename) return alert("Enter a subdomain");
 
   const files = folderInput.files;
-  if (files.length === 0) return alert("Please select your website folder");
+  if (!files.length) return alert("Select a folder");
 
   const formData = new FormData();
   formData.append("sitename", sitename);
-
-  // Add all files with real folder structure
-  for (let i = 0; i < files.length; i++) {
-    formData.append("files[]", files[i]);
-    formData.append("paths[]", files[i].webkitRelativePath);
+  for (let file of files) {
+    formData.append("files[]", file);
+    formData.append("paths[]", file.webkitRelativePath);
   }
 
-  deployBtn.innerHTML = "Deploying...";
+  btnText.innerHTML = "Deploying... <div class='spinner'></div>";
   deployBtn.disabled = true;
 
-  fetch("/dashboard/upload", {
-    method: "POST",
-    body: formData
-  })
-    .then(r => r.text())
-    .then(() => {
-      window.location.href = "/dashboard";
-    })
-    .catch(() => {
-      alert("Upload failed");
-      deployBtn.innerHTML = "Deploy Site";
-      deployBtn.disabled = false;
+  try {
+    await fetch("/dashboard/upload", {
+      method: "POST",
+      body: formData
     });
+    gsap.to(".card", { y: -100, opacity: 0, duration: 1, onComplete: () => {
+      window.location.href = "/dashboard";
+    }});
+  } catch (err) {
+    alert("Upload failed!");
+    btnText.textContent = "Deploy Site";
+    deployBtn.disabled = false;
+  }
 };
 </script>
 
