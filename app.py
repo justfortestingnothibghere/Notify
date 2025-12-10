@@ -277,7 +277,7 @@ def serve_site(sitename, subpath=""):
     return render_template("404.html", sitename=sitename), 404
 
 # ========================= ERROR ROUTE /er =========================
-@app.route("/er")
+@app.route("/dashboard/logs")
 def error_route():
     subdomain = get_subdomain()
     if not subdomain:
@@ -293,19 +293,127 @@ def error_route():
             all_files.append(os.path.relpath(os.path.join(root, f), site_dir))
     return "<br>".join(all_files) or "No files found"
 
-# ========================= ADMIN PANEL =========================
 @app.route("/admin")
 def admin_panel():
     if session.get("user") != ADMIN_USERNAME or not session.get("is_admin"):
         flash("Access denied", "error")
         return redirect("/auth/login")
+
+    users = get_users()
+    sites = list(get_sites().values())
+
+    # Count sites per user
+    from collections import Counter
+    owner_counts = Counter(s["owner"] for s in sites)
+    active_sites = sum(1 for s in sites if not s.get("paused") and not s.get("banned"))
+    banned_users = sum(1 for u in users.values() if u.get("banned"))
+
     return render_template("admin.html",
-        users=get_users(),
-        sites=list(get_sites().values()),
-        logs=get_logs()[-200:],
-        total_users=len(get_users()),
-        total_sites=len(get_sites())
+        users=users,
+        sites=sites,
+        logs=get_logs()[-50:],
+        total_users=len(users),
+        total_sites=len(sites),
+        active_sites=active_sites,
+        banned_users=banned_users,
+        user_site_count=owner_counts,
+        DOMAIN=DOMAIN
     )
+
+
+# ========================= ADMIN ACTIONS =========================
+@app.route("/admin/ban_user/<username>")
+def ban_user(username):
+    if not is_admin(): return redirect("/auth/login")
+    users = get_users()
+    if username in users:
+        users[username]["banned"] = True
+        save_users(users)
+        log_action(session["user"], "admin_ban_user", username)
+        flash(f"User {username} banned")
+    return redirect("/admin")
+
+@app.route("/admin/unban_user/<username>")
+def unban_user(username):
+    if not is_admin(): return redirect("/auth/login")
+    users = get_users()
+    if username in users:
+        users[username]["banned"] = False
+        save_users(users)
+        log_action(session["user"], "admin_unban_user", username)
+    return redirect("/admin")
+
+@app.route("/admin/pause_site/<sitename>")
+def pause_site(sitename):
+    if not is_admin(): return redirect("/auth/login")
+    sites = get_sites()
+    for k, s in sites.items():
+        if s["sitename"] == sitename:
+            sites[k]["paused"] = True
+            save_sites(sites)
+            log_action(session["user"], "admin_pause_site", sitename)
+            break
+    return redirect("/admin")
+
+@app.route("/admin/resume_site/<sitename>")
+def resume_site(sitename):
+    if not is_admin(): return redirect("/auth/login")
+    sites = get_sites()
+    for k, s in sites.items():
+        if s["sitename"] == sitename:
+            sites[k]["paused"] = False
+            save_sites(sites)
+            log_action(session["user"], "admin_resume_site", sitename)
+            break
+    return redirect("/admin")
+
+@app.route("/admin/delete_site/<sitename>")
+def delete_site(sitename):
+    if not is_admin(): return redirect("/auth/login")
+    sites = get_sites()
+    new_sites = {}
+    deleted = False
+    for k, s in sites.items():
+        if s["sitename"] == sitename:
+            shutil.rmtree(os.path.join(UPLOAD_ROOT, sitename), ignore_errors=True)
+            log_action(session["user"], "admin_delete_site", f"{sitename} by {s['owner']}")
+            deleted = True
+        else:
+            new_sites[k] = s
+    if deleted:
+        save_sites(new_sites)
+        flash(f"Site {sitename} deleted permanently")
+    return redirect("/admin")
+
+@app.route("/admin/export/users")
+def export_users():
+    if not is_admin(): abort(403)
+    return app.response_class(
+        json.dumps(get_users(), indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment;filename=users.json"}
+    )
+
+@app.route("/admin/export/sites")
+def export_sites():
+    if not is_admin(): abort(403)
+    return app.response_class(
+        json.dumps(list(get_sites().values()), indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment;filename=sites.json"}
+    )
+
+@app.route("/admin/clear-logs")
+def clear_logs():
+    if not is_admin(): abort(403)
+    save_logs([])
+    log_action(session["user"], "admin_clear_logs")
+    return redirect("/admin")
+
+# Helper
+def is_admin():
+    return session.get("user") == ADMIN_USERNAME and session.get("is_admin")
+
 
 # ========================= RUN =========================
 if __name__ == "__main__":
