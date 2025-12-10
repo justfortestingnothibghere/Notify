@@ -6,13 +6,13 @@
     <a href="/" class="btn btn-ghost text-xl">TeamDev</a>  
   </div>  
   <div class="flex-none">  
-    <span class="mr-4">Hi, {{ username }}, Welcome To TeamDev Hoster</span>  
-    <a href="/auth/logout" class="btn btn-ghost">Lᴏɢᴏᴜᴛ</a>  
+    <span class="mr-4">Hi, {{ username }}</span>  
+    <a href="/auth/logout" class="btn btn-ghost">Logout</a>  
   </div>  
 </div>  <div class="container mx-auto p-8">  
   <div class="flex justify-between items-center mb-8">  
-    <h1 class="text-4xl font-bold">Yᴏᴜʀ Sɪᴛᴇs</h1>  
-    <a href="/dashboard/upload" class="btn btn-success">+ Uᴘʟᴏᴀᴅ Nᴇᴡ Sɪᴛᴇ</a>  
+    <h1 class="text-4xl font-bold">Your Sites</h1>  
+    <a href="/dashboard/upload" class="btn btn-success">+ Upload New Site</a>  
   </div>    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">  
     {% for site in sites %}  
     <div class="card bg-base-100 shadow-xl">  
@@ -28,7 +28,7 @@
             </button>  
           </form>  
           <form method="post" action="/dashboard/delete/{{ site.sitename }}" onsubmit="return confirm('Delete forever?')">  
-            <button class="btn btn-sm btn-error">Dᴇʟᴇᴛᴇ</button>  
+            <button class="btn btn-sm btn-error">Delete</button>  
           </form>  
         </div>  
       </div>  
@@ -36,8 +36,4 @@
     {% endfor %}  
   </div>  
 </div>  
-<footer class="bg-base-200 text-center py-6 mt-12 shadow-inner">
-  <p class="text-sm text-gray-600">© 2025 TeamDev. All rights reserved.</p>
-  <p class="text-sm text-gray-500"><a href="/terms" class="link link-hover">Terms of Service</a> | <a href="/privacy" class="link link-hover">Privacy Policy</a></p>
-</footer>
 {% endblock %}
