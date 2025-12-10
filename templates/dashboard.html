@@ -1,75 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="flex flex-col md:flex-row min-h-screen bg-gray-50">
-  <!-- Sidebar -->
-  <div class="w-full md:w-64 bg-white shadow-lg">
-    <div class="p-6 text-center border-b">
-      <h2 class="text-2xl font-bold text-indigo-600">TeamDev</h2>
-      <p class="text-gray-500 mt-1">Welcome, {{ username }}</p>
-    </div>
-    <nav class="p-4 space-y-2">
-      <a href="/dashboard" class="btn btn-ghost w-full justify-start">Dashboard</a>
-      <a href="/dashboard/upload" class="btn btn-primary w-full justify-start">Upload New Site</a>
-      <a href="/auth/logout" class="btn btn-error w-full justify-start">Logout</a>
-    </nav>
-  </div>
 
-  <!-- Main Content -->
-  <div class="flex-1 p-8">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6">
-      <h1 class="text-5xl font-bold text-gray-800 mb-4 md:mb-0">Your Sites</h1>
-      <div class="flex gap-4">
-        <input type="text" placeholder="Search Sites..." id="searchSites" class="input input-bordered" />
-        <a href="/dashboard/upload" class="btn btn-success">+ Upload New Site</a>
-      </div>
-    </div>
-
-    <!-- Sites Grid -->
-    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {% for site in sites %}
-      <div class="card bg-white shadow-xl hover:shadow-2xl transition-shadow duration-300 border rounded-lg">
-        <div class="card-body">
-          <div class="flex justify-between items-start">
-            <h2 class="card-title text-2xl font-semibold">{{ site.sitename }}</h2>
-            <span class="badge {{ 'badge-success' if not site.paused else 'badge-error' }}">
-              {{ 'Live' if not site.paused else 'Paused' }}
-            </span>
-          </div>
-          <p class="text-indigo-600 hover:underline">
-            <a href="https://{{ site.sitename }}.{{ DOMAIN }}" target="_blank">
-              {{ site.sitename }}.{{ DOMAIN }}
-            </a>
-          </p>
-          <p class="text-gray-500 text-sm mt-1">Uploaded on: {{ site.uploaded_at.strftime('%b %d, %Y') }}</p>
-          <p class="text-gray-500 text-sm mt-1">Traffic: {{ site.traffic or 0 }} visits</p>
-
-          <div class="card-actions justify-end mt-4 flex flex-wrap gap-2">
-            <a href="/dashboard/edit/{{ site.sitename }}" class="btn btn-outline btn-sm">Edit</a>
-            <form method="post" action="/dashboard/toggle/{{ site.sitename }}" class="inline">
-              <button class="btn btn-sm {{ 'btn-error' if site.paused else 'btn-success' }}">
-                {{ 'Resume' if site.paused else 'Pause' }}
-              </button>
-            </form>
-            <form method="post" action="/dashboard/delete/{{ site.sitename }}" onsubmit="return confirm('Delete forever?')">
-              <button class="btn btn-sm btn-error">Delete</button>
-            </form>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-</div>
-
-<script>
-  // Simple search filter
-  const searchInput = document.getElementById('searchSites');
-  searchInput.addEventListener('input', function() {
-    const filter = this.value.toLowerCase();
-    document.querySelectorAll('.card').forEach(card => {
-      const title = card.querySelector('.card-title').innerText.toLowerCase();
-      card.style.display = title.includes(filter) ? '' : 'none';
-    });
-  });
-</script>
+<div class="navbar bg-base-100 shadow-lg">  
+  <div class="flex-1 px-6">  
+    <a href="/" class="btn btn-ghost text-xl">TeamDev</a>  
+  </div>  
+  <div class="flex-none">  
+    <span class="mr-4">Hi, {{ username }}, Welcome To TeamDev Hoster</span>  
+    <a href="/auth/logout" class="btn btn-ghost">Lᴏɢᴏᴜᴛ</a>  
+  </div>  
+</div>  <div class="container mx-auto p-8">  
+  <div class="flex justify-between items-center mb-8">  
+    <h1 class="text-4xl font-bold">Yᴏᴜʀ Sɪᴛᴇs</h1>  
+    <a href="/dashboard/upload" class="btn btn-success">+ Uᴘʟᴏᴀᴅ Nᴇᴡ Sɪᴛᴇ</a>  
+  </div>    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">  
+    {% for site in sites %}  
+    <div class="card bg-base-100 shadow-xl">  
+      <div class="card-body">  
+        <h2 class="card-title">{{ site.sitename }}</h2>  
+        <p><a href="https://{{ site.sitename }}.{{ DOMAIN }}" target="_blank" class="link link-primary">  
+          {{ site.sitename }}.{{ DOMAIN }}  
+        </a></p>  
+        <div class="card-actions justify-end mt-4">  
+          <form method="post" action="/dashboard/toggle/{{ site.sitename }}" class="inline">  
+            <button class="btn btn-sm {{ 'btn-error' if not site.paused else 'btn-success' }}">  
+              {{ 'Paused' if site.paused else 'Live' }}  
+            </button>  
+          </form>  
+          <form method="post" action="/dashboard/delete/{{ site.sitename }}" onsubmit="return confirm('Delete forever?')">  
+            <button class="btn btn-sm btn-error">Dᴇʟᴇᴛᴇ</button>  
+          </form>  
+        </div>  
+      </div>  
+    </div>  
+    {% endfor %}  
+  </div>  
+</div>  
+<footer class="bg-base-200 text-center py-6 mt-12 shadow-inner">
+  <p class="text-sm text-gray-600">© 2025 TeamDev. All rights reserved.</p>
+  <p class="text-sm text-gray-500"><a href="/terms" class="link link-hover">Terms of Service</a> | <a href="/privacy" class="link link-hover">Privacy Policy</a></p>
+</footer>
 {% endblock %}
